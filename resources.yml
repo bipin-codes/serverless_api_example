@@ -1,0 +1,167 @@
+#COGNITO RESOURCES....
+adminUserPool:
+  Type: AWS::Cognito::UserPool
+  Properties:
+    AutoVerifiedAttributes:
+      - email
+    MfaConfiguration: ON
+    EnabledMfas:
+      - SOFTWARE_TOKEN_MFA
+    UsernameAttributes:
+      - email
+    UserPoolName: ${self:service}-${self:provider.stage}-userpool
+    AdminCreateUserConfig:
+      AllowAdminCreateUserOnly: True
+    EmailConfiguration:
+      EmailSendingAccount: COGNITO_DEFAULT
+    DeletionProtection: ACTIVE
+
+dbbUserPoolDomain:
+  Type: AWS::Cognito::UserPoolDomain
+  Properties:
+    Domain: ${self:provider.stage}-${self:service}
+    UserPoolId: !Ref adminUserPool
+
+dbbAppClient:
+  Type: AWS::Cognito::UserPoolClient
+  Properties:
+    UserPoolId: !Ref adminUserPool
+    ClientName: ${self:service}-${self:provider.stage}-client
+    AllowedOAuthFlowsUserPoolClient: true
+    ExplicitAuthFlows:
+      - ALLOW_REFRESH_TOKEN_AUTH
+    AllowedOAuthScopes:
+      - aws.cognito.signin.user.admin
+      - openid
+      - email
+    AllowedOAuthFlows:
+      - implicit
+    SupportedIdentityProviders:
+      - COGNITO
+    CallbackURLs:
+      - http://localhost:5173/loggedin
+      - https://mydomain.com/loggedin
+
+userPoolUser:
+  Type: AWS::Cognito::UserPoolUser
+  Properties:
+    DesiredDeliveryMediums:
+      - EMAIL
+    Username: myusername
+    UserPoolId: !Ref adminUserPool
+    UserAttributes:
+      - Name: email
+        Value: myusername@gmail.com
+
+CognitoAuthorizer:
+  Type: AWS::ApiGateway::Authorizer
+  Properties:
+    Name: ${self:service}-${self:provider.stage}-CognitoAuthorizer
+    IdentitySource: method.request.header.Authorization
+    Type: COGNITO_USER_POOLS
+    ProviderARNs:
+      - !GetAtt adminUserPool.Arn
+    RestApiId:
+      Ref: ApiGatewayRestApi #this variable is defined by serverless framework internally...
+
+# DYNAMO RESOURCES....
+blogTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:service}-blogs-${self:provider.stage}
+    BillingMode: PAY_PER_REQUEST
+
+    KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+    AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      - AttributeName: created
+        AttributeType: S
+      - AttributeName: sortPartitionKey
+        AttributeType: S
+    GlobalSecondaryIndexes:
+      - IndexName: SortingIndex
+        KeySchema:
+          - AttributeName: sortPartitionKey
+            KeyType: HASH
+          - AttributeName: created
+            KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+    Tags:
+      - Key: stage
+        Value: ${self:provider.stage}
+      - Key: project
+        Value: ${self:custom.name}
+
+commentsTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:service}-comments-${self:provider.stage}
+    BillingMode: PAY_PER_REQUEST
+    KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+    AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+    Tags:
+      - Key: stage
+        Value: ${self:provider.stage}
+      - Key: project
+        Value: ${self:custom.name}
+
+categoriesTable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: ${self:service}-categories-${self:provider.stage}
+    BillingMode: PAY_PER_REQUEST
+    KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+
+    AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+
+    Tags:
+      - Key: stage
+        Value: ${self:provider.stage}
+      - Key: project
+        Value: ${self:custom.name}
+
+#S3 Resources...
+
+blogImagesBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+    PublicAccessBlockConfiguration:
+      BlockPublicAcls: false
+      BlockPublicPolicy: false
+      IgnorePublicAcls: false
+      RestrictPublicBuckets: false
+    BucketName: ${self:service}-${self:provider.stage}-blog-images
+    CorsConfiguration:
+      CorsRules:
+        - AllowedHeaders:
+            - '*'
+          AllowedMethods:
+            - GET
+            - PUT
+          AllowedOrigins:
+            - 'http://localhost:5173'
+            - 'https://admin.mydomain.com/'
+blogImagesBucketPolicy:
+  Type: AWS::S3::BucketPolicy
+  Properties:
+    Bucket: !Ref blogImagesBucket
+    PolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Action:
+            - s3:GetObject
+          Effect: 'Allow'
+          Resource: !Sub 'arn:aws:s3:::${blogImagesBucket}/*'
+          Principal: '*'

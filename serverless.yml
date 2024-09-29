@@ -1,0 +1,52 @@
+service: mydomain-api
+frameworkVersion: '3'
+
+plugins:
+  - serverless-esbuild
+  - serverless-prune-versions
+  - serverless-openapi-documentation
+  - serverless-plugin-log-retention
+  - serverless-iam-roles-per-function
+
+package:
+  individually: true
+  excludeDevDependencies: true
+
+custom:
+  name: mydomain.com
+  prune:
+    automatic: true
+    includeLayers: true
+    number: 2
+  logRetentionInDays: 5
+  esbuild:
+    bundle: true
+    minify: false
+  cors:
+    origins:
+      - 'http://localhost:5173'
+    headers:
+      - Authorization
+      - Content-Type
+      - X-Amz-Date
+      - X-Api-Key
+      - X-Amz-Security-Token
+      - X-Amz-User-Agent,
+      - X-Amzn-Trace-Id
+    allowCredentials: false
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  versionFunctions: true
+  region: ap-south-1
+  stage: ${opt:stage, 'dev'}
+  deploymentMethod: direct
+  tracing:
+    lambda: true
+
+functions:
+  - ${file(./functions.yml)}
+
+resources:
+  Resources: ${file(./resources.yml)}

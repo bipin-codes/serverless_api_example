@@ -1,0 +1,214 @@
+validateToken:
+  handler: src/index.handler
+  events:
+    - http:
+        path: /
+        method: POST
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+
+# CATEGORIES ROUTES...
+getCategories:
+  handler: src/features/categories/get.handler
+  events:
+    - http:
+        path: /categories
+        method: GET
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref categoriesTable
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+      Resource: !GetAtt categoriesTable.Arn
+
+createCategory:
+  handler: src/features/categories/create.handler
+  events:
+    - http:
+        path: /categories
+        method: post
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref categoriesTable
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+      Resource: !GetAtt categoriesTable.Arn
+
+updateCategory:
+  handler: src/features/categories/update.handler
+  events:
+    - http:
+        path: /categories
+        method: PUT
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref categoriesTable
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:UpdateItem
+      Resource: !GetAtt categoriesTable.Arn
+
+deleteCategory:
+  handler: src/features/categories/delete.handler
+  events:
+    - http:
+        path: /categories/{id}
+        method: DELETE
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+
+  environment:
+    TABLE_NAME: !Ref categoriesTable
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DeleteItem
+      Resource: !GetAtt categoriesTable.Arn
+# Blog Routes...
+createPresignedURLs:
+  handler: src/features/blogs/createPresigned.handler
+  events:
+    - http:
+        path: /blogs/signed_urls
+        method: POST
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  iamRoleStatementsName: pre-signed-function-role-${self:provider.stage}
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - S3:PutObject
+      Resource: !Sub 'arn:aws:s3:::${blogImagesBucket}/*'
+  environment:
+    BUCKET_NAME: !Ref blogImagesBucket
+
+createBlog:
+  handler: src/features/blogs/create.handler
+  events:
+    - http:
+        path: /blogs
+        method: POST
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref blogTable
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+      Resource: !GetAtt blogTable.Arn
+updateBlog:
+  handler: src/features/blogs/update.handler
+  events:
+    - http:
+        path: /blogs
+        method: PUT
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref blogTable
+    BUCKET_NAME: !Ref blogImagesBucket
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:UpdateItem
+        - dynamodb:GetItem
+      Resource: !GetAtt blogTable.Arn
+    - Effect: Allow
+      Action:
+        - s3:DeleteObject
+      Resource: !Sub 'arn:aws:s3:::${blogImagesBucket}/*'
+deleteBlog:
+  handler: src/features/blogs/delete.handler
+  events:
+    - http:
+        path: /blogs/{id}
+        method: DELETE
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref blogTable
+    BUCKET_NAME: !Ref blogImagesBucket
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DeleteItem
+      Resource: !GetAtt blogTable.Arn
+    - Effect: Allow
+      Action:
+        - s3:DeleteObject
+      Resource: !Sub 'arn:aws:s3:::${blogImagesBucket}/*'
+getBlogs:
+  handler: src/features/blogs/get.handler
+  events:
+    - http:
+        path: /blogs #last blog fetched id... id , limit
+        method: GET
+        cors: ${self:custom.cors}
+        authorizer:
+          authorizerId:
+            Ref: CognitoAuthorizer
+          type: COGNITO_USER_POOLS
+          scopes:
+            - email
+  environment:
+    TABLE_NAME: !Ref blogTable
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+      Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${blogTable}/*'
